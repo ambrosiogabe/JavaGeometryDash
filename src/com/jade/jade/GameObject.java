@@ -12,7 +12,7 @@ import com.jade.file.Serialize;
 import java.util.List;
 import java.util.ArrayList;
 
-public class GameObject extends Serialize {
+public class GameObject extends Serialize implements Comparable<GameObject> {
     List<Component> components;
     List<Component> componentsToRemove = new ArrayList<>();
     List<Component> componentsToAdd = new ArrayList<>();
@@ -141,6 +141,15 @@ public class GameObject extends Serialize {
             go.gameObjects.add(g.clone());
         }
         return go;
+    }
+
+    @Override
+    public int compareTo(GameObject go) {
+        if (go.transform.position.y != this.transform.position.y)
+            return this.transform.position.y > go.transform.position.y ? 1 : -1;
+
+        if (go.transform.position.x == this.transform.position.x) return 0;
+        return this.transform.position.x > go.transform.position.x ? 1 : -1;
     }
 
     @Override

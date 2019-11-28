@@ -23,6 +23,11 @@ public class Transform extends Serialize {
         return builder.toString();
     }
 
+    @Override
+    public String toString() {
+        return "Vec2 (" + position.x + ", " + position.y + ")";
+    }
+
     public Transform clone() {
         return new Transform(new Vector2(this.position.x, this.position.y));
     }

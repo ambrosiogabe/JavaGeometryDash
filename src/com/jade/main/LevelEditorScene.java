@@ -5,6 +5,7 @@ import java.awt.event.KeyEvent;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -12,7 +13,7 @@ import java.util.zip.ZipOutputStream;
 import com.jade.components.BoxBounds;
 import com.jade.components.Sprite;
 import com.jade.components.TriangleBounds;
-import com.jade.dataStructures.Vector2;
+import com.jade.dataStructures.*;
 import com.jade.jade.Camera;
 import com.jade.jade.GameObject;
 import com.jade.jade.Transform;
@@ -38,6 +39,14 @@ public class LevelEditorScene extends Scene {
     public static GameObject cursor;
     private GameObject ground;
 
+    SpecieManager specieManager;
+    Genome currentGenome;
+    float evaluation;
+    float fitness;
+
+    private float debounceTime = 0.01f;
+    private float debounceLeft = 0.1f;
+
     public LevelEditorScene(String name) {
         super.Scene(name);
         gameObjects = new ArrayList<>();
@@ -48,6 +57,9 @@ public class LevelEditorScene extends Scene {
 
     @Override
     public void init() {
+        specieManager = new SpecieManager(3, 1);
+        requestNext();
+
         initPlayer();
         initBackgrounds();
         LevelEditorScene.cursor = new GameObject("Cursor", new Transform(new Vector2()));
@@ -68,6 +80,12 @@ public class LevelEditorScene extends Scene {
         camera.transform.position = new Vector2(player.transform.position.x + Constants.CAMERA_OFFSET_X, player.transform.position.y + Constants.CAMERA_OFFSET_Y + 30);
         grid.start();
         importLevel("levelOutput");
+    }
+
+    public void requestNext() {
+        fitness = 0.0f;
+        Genome nextAi = specieManager.nextGenome();
+        currentGenome = nextAi;
     }
 
     public void safeAddGameObject(GameObject go) {
@@ -102,8 +120,52 @@ public class LevelEditorScene extends Scene {
         LevelEditorScene.scene = null;
     }
 
+    public float eval(float f1, float f2, boolean shouldBeTrue) {
+        currentGenome.getInputs().get(0).setValue(f1);
+        currentGenome.getInputs().get(1).setValue(f2);
+        currentGenome.getInputs().get(2).setValue(1.0f);
+        currentGenome.run();
+        while (!currentGenome.isReady) {}
+        List<NodeGene> output = currentGenome.outputs;
+        if (shouldBeTrue) {
+            return 1.0f - output.get(0).getValue();
+        } else {
+            return output.get(0).getValue();
+        }
+    }
+
+    public void resetGenome() {
+        for (NodeGene gene : currentGenome.getNodeGenes()) {
+            gene.setValue(0.0f);
+        }
+    }
+
+    public void fullEval() {
+        fitness = 0.0f;
+        float error = 0.0f;
+        error += eval(0.0f, 0.0f, false);
+        error += eval(0.0f, 1.0f, true);
+        error += eval(1.0f, 0.0f, true);
+        error += eval(1.0f, 1.0f, false);
+        fitness = 4.0f - error;
+        fitness *= fitness * fitness;
+        currentGenome.setFitness(fitness);
+        resetGenome();
+    }
+
     @Override
     public void update(double dt) {
+        debounceLeft -= dt;
+        if (debounceLeft < 0.0f) {
+            if (Window.keyListener.isKeyPressed(KeyEvent.VK_SPACE)) {
+                fullEval();
+                requestNext();
+            } else if (Window.keyListener.isKeyPressed(KeyEvent.VK_ENTER)) {
+                fullEval();
+            }
+            debounceLeft = debounceTime;
+        }
+
         cursor.update(dt);
         grid.update(dt);
 
@@ -141,7 +203,9 @@ public class LevelEditorScene extends Scene {
         grid.draw(g2);
         renderingEngine.draw(g2);
         cursor.getComponent(SnapToGrid.class).draw(g2);
-        cursor.getComponent(CursorScript.class).draw(g2);
+        cursor.getComponent(CursorScript.class).draw(g2);;
+        specieManager.draw(g2, (int)(fitness * 10000.0f), evaluation);
+        currentGenome.draw(g2);
     }
 
     public GameObject raycastMouseclick(int x, int y) {

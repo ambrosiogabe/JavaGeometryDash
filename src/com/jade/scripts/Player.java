@@ -3,7 +3,9 @@ package com.jade.scripts;
 import com.jade.dataStructures.Vector2;
 import com.jade.components.BoxBounds;
 import com.jade.components.Component;
+import com.jade.jade.GameObject;
 import com.jade.main.Constants;
+import com.jade.main.LevelScene;
 import com.jade.main.Window;
 
 import java.awt.*;
@@ -12,12 +14,13 @@ import java.awt.image.BufferedImage;
 
 public class Player extends Component {
     private BufferedImage layerOne, layerTwo, outline, spaceship;
-    private Color layerOneColor, layerTwoColor;
+    public Color layerOneColor, layerTwoColor;
 
     private boolean isPlaying;
     public boolean isJumping = false;
     private int debounceFrames = 2;
     private int debounceLeft = 0;
+    public boolean isAi = false;
 
     // 0 -- Regular
     // 1 -- Spaceship
@@ -35,11 +38,15 @@ public class Player extends Component {
 
     @Override
     public void start() {
+        recolor();
+    }
+
+    public void recolor() {
         int threshold = 200;
         for(int y=0; y < layerOne.getWidth(); y++) {
             for (int x=0; x < layerOne.getHeight(); x++) {
                 Color color = new Color(layerOne.getRGB(x, y));
-                if (color.getRed() > threshold && color.getGreen() > threshold && color.getBlue() > threshold) {
+                if (color.getRed() > threshold || color.getGreen() > threshold || color.getBlue() > threshold) {
                     layerOne.setRGB(x, y, layerOneColor.getRGB());
                 }
             }
@@ -48,7 +55,7 @@ public class Player extends Component {
         for(int y=0; y < layerTwo.getWidth(); y++) {
             for (int x=0; x < layerTwo.getHeight(); x++) {
                 Color color = new Color(layerTwo.getRGB(x, y));
-                if (color.getRed() > threshold && color.getGreen() > threshold && color.getBlue() > threshold) {
+                if (color.getRed() > threshold || color.getGreen() > threshold || color.getBlue() > threshold) {
                     layerTwo.setRGB(x, y, layerTwoColor.getRGB());
                 }
             }
@@ -74,11 +81,20 @@ public class Player extends Component {
 
     }
 
-    private void updateSpaceshipState(double dt) {
-        if (Window.keyListener.isKeyPressed(KeyEvent.VK_SPACE)) {
-            addFlyingForce(dt);
+    public void jump(BoxBounds bounds) {
+        if (state == 1) {
+            addFlyingForce();
+            isJumping = true;
+        } else if (state == 0 && bounds.onGround) {
+            addJumpForce();
+            bounds.onGround = false;
             isJumping = true;
         }
+    }
+
+    private void updateSpaceshipState(double dt) {
+        if (Window.keyListener.isKeyPressed(KeyEvent.VK_SPACE) && !isAi)
+            jump(parent.getComponent(BoxBounds.class));
 
         if (parent.getComponent(BoxBounds.class).onGround) {
             parent.getComponent(BoxBounds.class).velocity.y = 0.0f;
@@ -93,11 +109,8 @@ public class Player extends Component {
     }
 
     private void updateRegularState(double dt) {
-        if (Window.keyListener.isKeyPressed(KeyEvent.VK_SPACE) && parent.getComponent(BoxBounds.class).onGround) {
-            addJumpForce();
-            parent.getComponent(BoxBounds.class).onGround = false;
-            isJumping = true;
-        }
+        if (Window.keyListener.isKeyPressed(KeyEvent.VK_SPACE) && !isAi)
+            jump(parent.getComponent(BoxBounds.class));
 
         if (!parent.getComponent(BoxBounds.class).onGround) {
             parent.getComponent(BoxBounds.class).angle += 300.0f * dt;
@@ -141,14 +154,17 @@ public class Player extends Component {
     }
 
     public void die() {
-        Window.getWindow().changeScene(1);
+        if (!isAi)
+            Window.getWindow().changeScene(1);
+        else
+            LevelScene.getScene().resetAi();
     }
 
     private void addJumpForce() {
         parent.getComponent(BoxBounds.class).velocity =  new Vector2(0, Constants.JUMP_FORCE);
     }
 
-    private void addFlyingForce(double dt) {
+    private void addFlyingForce() {
         Vector2 vel = parent.getComponent(BoxBounds.class).velocity;
         parent.getComponent(BoxBounds.class).velocity = Vector2.add(vel, new Vector2(0, Constants.FLY_FORCE));
     }

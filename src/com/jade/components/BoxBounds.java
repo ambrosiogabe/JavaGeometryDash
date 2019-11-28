@@ -1,5 +1,6 @@
 package com.jade.components;
 
+import com.jade.dataStructures.Genome;
 import com.jade.dataStructures.JString;
 import com.jade.dataStructures.Vector2;
 import com.jade.jade.GameObject;
@@ -37,6 +38,8 @@ public class BoxBounds extends Component {
         this.height = height;
         this.isPlaying = isPlaying;
         this.angle = angle;
+        this.halfWidth = (float)(width / 2.0);
+        this.halfHeight = (float)(height / 2.0);
         if (width <= Constants.TILE_WIDTH)
             this.xBuffer = (float)((Constants.TILE_WIDTH - width) / 2.0);
         else
@@ -82,7 +85,7 @@ public class BoxBounds extends Component {
     public void update(double dt) {
         if (!isPlaying) {
             if (!Window.isEditing && canCollide) {
-                resolveCollision();
+                resolveCollision(LevelScene.getScene().player);
             }
             return;
         }
@@ -107,15 +110,13 @@ public class BoxBounds extends Component {
                 this.parent.transform.position.y + yBuffer >= y && this.parent.transform.position.y + this.height + yBuffer <= y + h;
     }
 
-    private void resolveCollision() {
-        GameObject plr = LevelScene.getScene().player;
+    private void resolveCollision(GameObject plr) {
         float dx = (plr.transform.position.x + plr.getComponent(BoxBounds.class).halfWidth) - (this.parent.transform.position.x + xBuffer + this.halfWidth);
         float dy = (plr.transform.position.y + plr.getComponent(BoxBounds.class).halfHeight) - (this.parent.transform.position.y + yBuffer + this.halfHeight);
 
         float combinedHalfWidths = plr.getComponent(BoxBounds.class).halfWidth + this.halfWidth;
         float combinedHalfHeights = plr.getComponent(BoxBounds.class).halfHeight + this.halfHeight;
 
-        boolean onGround = false;
         if (Math.abs(dx) < combinedHalfWidths) {
             if (Math.abs(dy) < combinedHalfHeights) {
                 float overlapX = combinedHalfWidths - Math.abs(dx);
@@ -137,12 +138,16 @@ public class BoxBounds extends Component {
                             }
                             plr.getComponent(BoxBounds.class).velocity.y = 0;
                             plr.getComponent(BoxBounds.class).onGround = true;
-                            onGround = true;
                         } else {
                             plr.getComponent(Player.class).die();
                         }
                     }
                 } else if (Math.abs(dx) < 40) {
+//                    if (plr.getComponent(Player.class).isAi) {
+//                        plr.getComponent(Player.class).die();
+//                        return;
+//                    }
+
                     if (dx > 0) {
                         if (!isDeathBox && dy <= 0.3) {
                             if (plr.getComponent(Player.class).isJumping) return;
@@ -155,8 +160,6 @@ public class BoxBounds extends Component {
                             plr.getComponent(BoxBounds.class).onGround = true;
                         } else {
                             // Collision on the left
-                            System.out.println("DEATH HERE");
-                            System.out.println(dy);
                             plr.getComponent(Player.class).die();
                         }
                     } else if (dx < 0) {
@@ -173,7 +176,21 @@ public class BoxBounds extends Component {
                 }
             }
         }
-        plr.getComponent(BoxBounds.class).onGround = onGround || plr.getComponent(BoxBounds.class).onGround;
+    }
+
+    public boolean isColliding(BoxBounds bounds, Vector2 pos) {
+        // bounds.centerx - this.centerx
+        float dx = (pos.x + bounds.halfWidth) - (this.parent.transform.position.x + xBuffer + this.halfWidth);
+        // bounds.centery - this.centery
+        float dy = (pos.y + bounds.halfHeight) - (this.parent.transform.position.y + yBuffer + this.halfHeight);
+
+        float combinedHalfWidths = bounds.halfWidth + this.halfWidth;
+        float combinedHalfHeights = bounds.halfHeight + this.halfHeight;
+
+        if (Math.abs(dx) < combinedHalfWidths) {
+            return Math.abs(dy) < combinedHalfHeights;
+        }
+        return false;
     }
 
     @Override

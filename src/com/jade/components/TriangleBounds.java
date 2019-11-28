@@ -67,16 +67,16 @@ public class TriangleBounds extends Component {
         recalculateTransform();
         if (Window.isEditing) return;
 
-        if (broadPhase()) {
+        if (broadPhase(LevelScene.getScene().player)) {
             // Possible Collision!
-            if (narrowPhase()) {
+            if (narrowPhase(LevelScene.getScene().player)) {
                 // There is definitely a collision!
                 LevelScene.getScene().player.getComponent(Player.class).die();
             }
         }
     }
 
-    private boolean broadPhase() {
+    private boolean broadPhase(GameObject plr) {
         double centerX = x1;
         double centerY = y1 + halfHeight;
         if (angle % 360 == 0) {
@@ -91,7 +91,6 @@ public class TriangleBounds extends Component {
             centerY = y1;
         }
 
-        GameObject plr = LevelScene.getScene().player;
         double plrCenterX = plr.transform.position.x + plr.getComponent(BoxBounds.class).halfWidth;
         double plrCenterY = plr.transform.position.y + plr.getComponent(BoxBounds.class).halfHeight;
 
@@ -99,26 +98,39 @@ public class TriangleBounds extends Component {
                 (this.enclosingRadius + plr.getComponent(BoxBounds.class).halfWidth) * (this.enclosingRadius + plr.getComponent(BoxBounds.class).halfWidth);
     }
 
-    private boolean narrowPhase() {
+    private boolean narrowPhase(GameObject plr) {
         Vector2 p1 = new Vector2(x1, y1);
         Vector2 p2 = new Vector2(x2, y2);
         Vector2 p3 = new Vector2(x3, y3);
 
-        BoxBounds bounds = LevelScene.getScene().player.getComponent(BoxBounds.class);
+        BoxBounds bounds = plr.getComponent(BoxBounds.class);
         Vector2 origin = new Vector2(bounds.parent.transform.position.x + bounds.halfWidth, bounds.parent.transform.position.y + bounds.halfHeight);
 
-        return (playerIntersectingLine(p1, p2, origin, -bounds.angle, 0)) || (playerIntersectingLine(p1, p3, origin, -bounds.angle, 0)) ||
-                (playerIntersectingLine(p2, p3, origin, -bounds.angle, 0));
+        return (playerIntersectingLine(p1, p2, origin, -bounds.angle, 0, bounds, plr.transform.position)) ||
+                (playerIntersectingLine(p1, p3, origin, -bounds.angle, 0, bounds, plr.transform.position)) ||
+                (playerIntersectingLine(p2, p3, origin, -bounds.angle, 0, bounds, plr.transform.position));
+    }
+
+    public boolean isColliding(BoxBounds bounds, Vector2 pos) {
+        Vector2 p1 = new Vector2(x1, y1);
+        Vector2 p2 = new Vector2(x2, y2);
+        Vector2 p3 = new Vector2(x3, y3);
+
+        Vector2 origin = new Vector2(pos.x + bounds.halfWidth, pos.y + bounds.halfHeight);
+
+        return (playerIntersectingLine(p1, p2, origin, -bounds.angle, 0, bounds, pos)) ||
+                (playerIntersectingLine(p1, p3, origin, -bounds.angle, 0, bounds, pos)) ||
+                (playerIntersectingLine(p2, p3, origin, -bounds.angle, 0, bounds, pos));
     }
 
 
-    private boolean playerIntersectingLine(Vector2 oldP1, Vector2 oldP2, Vector2 origin, double angle, int depth) {
+    private boolean playerIntersectingLine(Vector2 oldP1, Vector2 oldP2, Vector2 origin, double angle, int depth, BoxBounds bounds, Vector2 playerPos) {
         if (depth > 5) return true;
         Vector2 p1 = rotateAbout(Math.toRadians(angle), oldP1, origin);
         Vector2 p2 = rotateAbout(Math.toRadians(angle), oldP2, origin);
 
-        int code1 = computeRegionCode(p1);
-        int code2 = computeRegionCode(p2);
+        int code1 = computeRegionCode(p1, bounds, playerPos);
+        int code2 = computeRegionCode(p2, bounds, playerPos);
 
         if (code1 == 0 && code2 == 0) {
             // Line is completely inside
@@ -127,10 +139,10 @@ public class TriangleBounds extends Component {
             // Line is completely outside
             return false;
         } else {
-            int ymax = (int)(LevelScene.getScene().player.transform.position.y + LevelScene.getScene().player.getComponent(BoxBounds.class).height);
-            int ymin = (int)(LevelScene.getScene().player.transform.position.y);
-            int xmax = (int)(LevelScene.getScene().player.transform.position.x + LevelScene.getScene().player.getComponent(BoxBounds.class).width);
-            int xmin = (int)(LevelScene.getScene().player.transform.position.x);
+            int ymax = (int)(playerPos.y + bounds.height);
+            int ymin = (int)(playerPos.y);
+            int xmax = (int)(playerPos.x + bounds.width);
+            int xmin = (int)(playerPos.x);
 
             int codeForPointOutside;
             Vector2 newVec = new Vector2();
@@ -164,26 +176,25 @@ public class TriangleBounds extends Component {
 
             if (codeForPointOutside == code1) {
                 Vector2 newP1 = rotateAbout(Math.toRadians(0), newVec, origin);
-                return playerIntersectingLine(newP1, oldP2, origin, angle, depth + 1);
+                return playerIntersectingLine(newP1, oldP2, origin, angle, depth + 1, bounds, playerPos);
             } else {
                 Vector2 newP2 = rotateAbout(Math.toRadians(0), newVec, origin);
-                return playerIntersectingLine(oldP1, newP2, origin, angle, depth + 1);
+                return playerIntersectingLine(oldP1, newP2, origin, angle, depth + 1, bounds, playerPos);
             }
         }
     }
 
-    private int computeRegionCode(Vector2 point) {
+    private int computeRegionCode(Vector2 point, BoxBounds bounds, Vector2 playerPos) {
         int code = INSIDE;
-        GameObject plr = LevelScene.getScene().player;
-        Vector2 topLeftPlr = plr.transform.position;
+        Vector2 topLeftPlr = playerPos;
 
         if (point.x < topLeftPlr.x)
             code |= LEFT;
-        else if (point.x > topLeftPlr.x + plr.getComponent(BoxBounds.class).width)
+        else if (point.x > topLeftPlr.x + bounds.width)
             code |= RIGHT;
         if (point.y < topLeftPlr.y)
             code |= TOP;
-        else if (point.y > topLeftPlr.y + plr.getComponent(BoxBounds.class).height)
+        else if (point.y > topLeftPlr.y + bounds.height)
             code |= BOTTOM;
 
         return code;

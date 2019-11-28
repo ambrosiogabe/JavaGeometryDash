@@ -5,8 +5,12 @@ import com.jade.components.BoxBounds;
 import com.jade.components.Component;
 import com.jade.jade.GameObject;
 import com.jade.main.Constants;
+import com.jade.main.LevelScene;
+import com.jade.main.Window;
 
-import java.awt.*;
+import java.awt.Graphics2D;
+import java.awt.BasicStroke;
+import java.awt.Color;
 
 public class Ground extends Component {
     GameObject player;
